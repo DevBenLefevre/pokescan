@@ -837,6 +837,19 @@
             <input type="text" id="ocr-set" placeholder="Rechercher un set..." autocomplete="off" />
           </div>
         </div>
+        <div style="margin-bottom:16px">
+          <label>Langue de ta carte</label>
+          <select onchange="selectedLanguage = this.value">
+            <option value="FR">FR — Français</option>
+            <option value="EN">EN — English</option>
+            <option value="DE">DE — Deutsch</option>
+            <option value="IT">IT — Italiano</option>
+            <option value="ES">ES — Español</option>
+            <option value="PT">PT — Português</option>
+            <option value="JA">JA — 日本語</option>
+            <option value="KO">KO — 한국어</option>
+          </select>
+        </div>
         <button class="btn btn-primary" style="width:100%" onclick="searchCard('ocr')">🔍 Rechercher cette carte</button>
       </div>
 
@@ -847,6 +860,19 @@
           <div class="set-input-wrap">
             <input type="text" id="manual-set" placeholder="Rechercher un set..." autocomplete="off" />
           </div>
+        </div>
+        <div class="form-group">
+          <label>Langue de ta carte</label>
+          <select onchange="selectedLanguage = this.value">
+            <option value="FR">FR — Français</option>
+            <option value="EN">EN — English</option>
+            <option value="DE">DE — Deutsch</option>
+            <option value="IT">IT — Italiano</option>
+            <option value="ES">ES — Español</option>
+            <option value="PT">PT — Português</option>
+            <option value="JA">JA — 日本語</option>
+            <option value="KO">KO — 한국어</option>
+          </select>
         </div>
         <div class="form-group">
           <label>Numéro de carte</label>
@@ -866,19 +892,6 @@
             <div class="preview-meta" id="preview-meta"></div>
             <div class="already-owned" id="already-owned">✓ Déjà dans ta collection</div>
           </div>
-        </div>
-        <div style="margin-top:16px">
-          <label>Langue de la carte</label>
-          <select id="card-language">
-            <option value="FR">FR — Français</option>
-            <option value="EN">EN — English</option>
-            <option value="DE">DE — Deutsch</option>
-            <option value="IT">IT — Italiano</option>
-            <option value="ES">ES — Español</option>
-            <option value="PT">PT — Português</option>
-            <option value="JA">JA — 日本語</option>
-            <option value="KO">KO — 한국어</option>
-          </select>
         </div>
         <div class="preview-actions">
           <button class="btn btn-primary" style="flex:1" onclick="addCard()">✚ Ajouter à la collection</button>
@@ -911,6 +924,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 let collection = [];
 let allSets = [];
 let currentCard = null;
+let selectedLanguage = 'FR';
 let cameraStream = null;
 let cameraActive = false;
 
@@ -1159,9 +1173,14 @@ async function searchCard(mode) {
   showOcrStatus('Recherche dans la base PokéTCG...');
 
   try {
-    const query = `number:${parseInt(number)} set.id:${set}`;
-    const res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=1`);
-    const data = await res.json();
+    const base = `number:${parseInt(number)} set.id:${set}`;
+    let res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(base + ' language:fr')}&pageSize=1`);
+    let data = await res.json();
+
+    if (!data.data || data.data.length === 0) {
+      res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(base)}&pageSize=1`);
+      data = await res.json();
+    }
 
     hideOcrStatus();
 
@@ -1253,7 +1272,7 @@ async function addCard() {
         hp: currentCard.hp,
         types: currentCard.types,
         quantity: 1,
-        notes: document.getElementById('card-language').value,
+        notes: selectedLanguage,
       };
       const { data, error } = await db.from('collection').insert(newCard).select().single();
       if (error) throw error;
