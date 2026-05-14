@@ -888,6 +888,8 @@ let cameraActive = false;
 
 // ─── LOADING ──────────────────────────────────────────────────────────────────
 window.addEventListener('load', async () => {
+  initSetInput('ocr-set');
+  initSetInput('manual-set');
   loadSets();
   await loadCollection();
   setTimeout(() => {
@@ -1024,8 +1026,6 @@ async function loadSets() {
     const res = await fetch('https://api.pokemontcg.io/v2/sets?orderBy=-releaseDate&pageSize=250');
     const data = await res.json();
     allSets = data.data || [];
-    initSetInput('ocr-set');
-    initSetInput('manual-set');
   } catch (e) {
     // autocomplete is a nice-to-have; silently ignore failures
   }
