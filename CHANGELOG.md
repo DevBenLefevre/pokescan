@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [2026-05-14b]
+
+### Corrigé
+- Autocomplete sets cassé : le filtre `language:fr` n'est pas supporté par l'endpoint `/sets` → retournait 0 résultats. Revenu au chargement de tous les sets sans filtre
+- Images carte en bonne langue : `language:fr` appliqué sur la requête **cartes** (pas sets) avec fallback EN si pas de version localisée disponible dans l'API
+
 ## [2026-05-14]
 
 ### Ajouté
