@@ -666,6 +666,46 @@
 
     .build-footer a:hover { color: var(--accent); }
 
+    /* SET DROPDOWN */
+    .set-input-wrap { position: relative; }
+
+    .set-input-wrap input.open {
+      border-color: var(--accent);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+
+    .set-options {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0; right: 0;
+      background: var(--surface2);
+      border: 1px solid var(--accent);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 200;
+    }
+
+    .set-options.open { display: block; }
+
+    .set-option {
+      padding: 10px 16px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .set-option:last-child { border-bottom: none; }
+    .set-option:hover, .set-option.hi { background: var(--surface); color: var(--accent); }
+    .set-option-code { font-size: 0.65rem; color: var(--muted); flex-shrink: 0; }
+    .set-option:hover .set-option-code, .set-option.hi .set-option-code { color: var(--accent); }
+
     /* RESPONSIVE */
     @media (max-width: 600px) {
       header { padding: 0 16px; }
@@ -768,7 +808,9 @@
         </div>
         <div style="margin-bottom:16px">
           <label>Set détecté (modifiable)</label>
-          <input type="text" id="ocr-set" list="sets-datalist" placeholder="ex: Écarlate & Violet (sv1)" />
+          <div class="set-input-wrap">
+            <input type="text" id="ocr-set" placeholder="Rechercher un set..." autocomplete="off" />
+          </div>
         </div>
         <button class="btn btn-primary" style="width:100%" onclick="searchCard('ocr')">🔍 Rechercher cette carte</button>
       </div>
@@ -777,7 +819,9 @@
       <div class="camera-section" id="tab-manual">
         <div class="form-group">
           <label>Set Pokémon TCG</label>
-          <input type="text" id="manual-set" list="sets-datalist" placeholder="Rechercher un set..." />
+          <div class="set-input-wrap">
+            <input type="text" id="manual-set" placeholder="Rechercher un set..." autocomplete="off" />
+          </div>
         </div>
         <div class="form-group">
           <label>Numéro de carte</label>
@@ -970,11 +1014,90 @@ async function loadSets() {
     const res = await fetch('https://api.pokemontcg.io/v2/sets?orderBy=-releaseDate&pageSize=250');
     const data = await res.json();
     allSets = data.data || [];
-    const dl = document.getElementById('sets-datalist');
-    dl.innerHTML = allSets.map(s => `<option value="${s.name} (${s.id})"></option>`).join('');
+    initSetInput('ocr-set');
+    initSetInput('manual-set');
   } catch (e) {
     // autocomplete is a nice-to-have; silently ignore failures
   }
+}
+
+function initSetInput(inputId) {
+  const input = document.getElementById(inputId);
+  const wrap = input.parentElement;
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'set-options';
+  wrap.appendChild(dropdown);
+
+  let hiIndex = -1;
+
+  function getMatches(q) {
+    if (!q) return allSets.slice(0, 40);
+    const lq = q.toLowerCase();
+    return allSets.filter(s =>
+      s.name.toLowerCase().includes(lq) || s.id.toLowerCase().includes(lq)
+    ).slice(0, 40);
+  }
+
+  function renderDropdown(q) {
+    hiIndex = -1;
+    const matches = getMatches(q);
+    if (!matches.length) {
+      dropdown.innerHTML = '<div class="set-option" style="color:var(--muted);cursor:default">Aucun set trouvé</div>';
+    } else {
+      dropdown.innerHTML = matches.map(s =>
+        `<div class="set-option" data-id="${s.id}" data-name="${s.name}">
+          <span>${s.name}</span>
+          <span class="set-option-code">${s.id}</span>
+        </div>`
+      ).join('');
+      dropdown.querySelectorAll('.set-option[data-id]').forEach(el => {
+        el.addEventListener('mousedown', e => {
+          e.preventDefault();
+          selectSet(el.dataset.name, el.dataset.id);
+        });
+      });
+    }
+  }
+
+  function selectSet(name, id) {
+    input.value = `${name} (${id})`;
+    closeDropdown();
+  }
+
+  function openDropdown() {
+    renderDropdown(input.value);
+    dropdown.classList.add('open');
+    input.classList.add('open');
+  }
+
+  function closeDropdown() {
+    dropdown.classList.remove('open');
+    input.classList.remove('open');
+    hiIndex = -1;
+  }
+
+  function moveHi(dir) {
+    const items = dropdown.querySelectorAll('.set-option[data-id]');
+    if (!items.length) return;
+    items[hiIndex]?.classList.remove('hi');
+    hiIndex = Math.max(0, Math.min(items.length - 1, hiIndex + dir));
+    items[hiIndex].classList.add('hi');
+    items[hiIndex].scrollIntoView({ block: 'nearest' });
+  }
+
+  input.addEventListener('focus', openDropdown);
+  input.addEventListener('input', () => renderDropdown(input.value));
+  input.addEventListener('blur', () => setTimeout(closeDropdown, 150));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { closeDropdown(); return; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); moveHi(1); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); moveHi(-1); return; }
+    if (e.key === 'Enter') {
+      const hi = dropdown.querySelector('.set-option.hi');
+      if (hi) { e.preventDefault(); selectSet(hi.dataset.name, hi.dataset.id); }
+    }
+  });
 }
 
 // ─── SEARCH CARD ──────────────────────────────────────────────────────────────
