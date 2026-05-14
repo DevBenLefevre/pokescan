@@ -702,9 +702,19 @@
     }
 
     .set-option:last-child { border-bottom: none; }
-    .set-option:hover, .set-option.hi { background: var(--surface); color: var(--accent); }
-    .set-option-code { font-size: 0.65rem; color: var(--muted); flex-shrink: 0; }
-    .set-option:hover .set-option-code, .set-option.hi .set-option-code { color: var(--accent); }
+    .set-option:hover, .set-option.hi { background: var(--surface); }
+    .set-option-ptcgo {
+      font-family: var(--font-display);
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 38px;
+      flex-shrink: 0;
+    }
+    .set-option-name { flex: 1; }
+    .set-option:hover .set-option-name, .set-option.hi .set-option-name { color: var(--accent); }
+    .set-option-code { font-size: 0.6rem; color: var(--muted); flex-shrink: 0; }
+    .set-option:hover .set-option-code, .set-option.hi .set-option-code { color: var(--muted); }
 
     /* RESPONSIVE */
     @media (max-width: 600px) {
@@ -1035,7 +1045,9 @@ function initSetInput(inputId) {
     if (!q) return allSets.slice(0, 40);
     const lq = q.toLowerCase();
     return allSets.filter(s =>
-      s.name.toLowerCase().includes(lq) || s.id.toLowerCase().includes(lq)
+      s.name.toLowerCase().includes(lq) ||
+      s.id.toLowerCase().includes(lq) ||
+      (s.ptcgoCode && s.ptcgoCode.toLowerCase().includes(lq))
     ).slice(0, 40);
   }
 
@@ -1047,7 +1059,8 @@ function initSetInput(inputId) {
     } else {
       dropdown.innerHTML = matches.map(s =>
         `<div class="set-option" data-id="${s.id}" data-name="${s.name}">
-          <span>${s.name}</span>
+          <span class="set-option-ptcgo">${s.ptcgoCode || ''}</span>
+          <span class="set-option-name">${s.name}</span>
           <span class="set-option-code">${s.id}</span>
         </div>`
       ).join('');
