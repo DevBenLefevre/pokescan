@@ -748,7 +748,7 @@
         </div>
         <div style="margin-bottom:16px">
           <label>Set détecté (modifiable)</label>
-          <input type="text" id="ocr-set" placeholder="ex: sv1" />
+          <input type="text" id="ocr-set" list="sets-datalist" placeholder="ex: Écarlate & Violet (sv1)" />
         </div>
         <button class="btn btn-primary" style="width:100%" onclick="searchCard('ocr')">🔍 Rechercher cette carte</button>
       </div>
@@ -756,11 +756,8 @@
       <!-- MANUAL TAB -->
       <div class="camera-section" id="tab-manual">
         <div class="form-group">
-          <label>Set Pokémon TCG (code)</label>
-          <input type="text" id="manual-set" placeholder="ex: sv1, base1, swsh1..." />
-          <div style="font-size:0.65rem;color:var(--muted);margin-top:6px">
-            Codes courants : sv1 (Écarlate & Violet), sv2 (Évolutions à Paldea), base1 (Set de Base)
-          </div>
+          <label>Set Pokémon TCG</label>
+          <input type="text" id="manual-set" list="sets-datalist" placeholder="Rechercher un set..." />
         </div>
         <div class="form-group">
           <label>Numéro de carte</label>
@@ -792,6 +789,8 @@
 
 </main>
 
+<datalist id="sets-datalist"></datalist>
+
 <script>
 // ─── CONFIG ───────────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://hgeitctehwcovulvaexm.supabase.co';
@@ -802,12 +801,14 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let collection = [];
+let allSets = [];
 let currentCard = null;
 let cameraStream = null;
 let cameraActive = false;
 
 // ─── LOADING ──────────────────────────────────────────────────────────────────
 window.addEventListener('load', async () => {
+  loadSets();
   await loadCollection();
   setTimeout(() => {
     document.getElementById('loading').classList.add('hidden');
@@ -911,9 +912,14 @@ async function captureAndScan() {
 
 function extractCardNumber(text) {
   const match = text.match(/(\d{1,3})\s*\/\s*(\d{1,3})/);
-  if (match) return match[1].padStart(3, '0');
+  if (match) return match[1];
   const simple = text.match(/\b(\d{3})\b/);
   return simple ? simple[1] : null;
+}
+
+function extractSetId(val) {
+  const match = val.trim().match(/\(([^)]+)\)$/);
+  return match ? match[1].trim() : val.trim().toLowerCase();
 }
 
 function extractSetCode(text) {
@@ -932,16 +938,29 @@ function hideOcrStatus() {
   document.getElementById('ocr-status').classList.remove('visible');
 }
 
+// ─── SETS ─────────────────────────────────────────────────────────────────────
+async function loadSets() {
+  try {
+    const res = await fetch('https://api.pokemontcg.io/v2/sets?orderBy=-releaseDate&pageSize=250');
+    const data = await res.json();
+    allSets = data.data || [];
+    const dl = document.getElementById('sets-datalist');
+    dl.innerHTML = allSets.map(s => `<option value="${s.name} (${s.id})"></option>`).join('');
+  } catch (e) {
+    // autocomplete is a nice-to-have; silently ignore failures
+  }
+}
+
 // ─── SEARCH CARD ──────────────────────────────────────────────────────────────
 async function searchCard(mode) {
   let number, set;
 
   if (mode === 'manual') {
-    number = document.getElementById('manual-number').value.trim().replace(/\/.*/, '').padStart(3, '0');
-    set = document.getElementById('manual-set').value.trim().toLowerCase();
+    number = document.getElementById('manual-number').value.trim().replace(/\/.*/, '');
+    set = extractSetId(document.getElementById('manual-set').value);
   } else {
-    number = document.getElementById('ocr-number').value.trim().padStart(3, '0');
-    set = document.getElementById('ocr-set').value.trim().toLowerCase();
+    number = document.getElementById('ocr-number').value.trim();
+    set = extractSetId(document.getElementById('ocr-set').value);
   }
 
   if (!number) { showToast('Entre un numéro de carte', 'error'); return; }
