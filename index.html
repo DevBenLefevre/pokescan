@@ -716,6 +716,21 @@
     .set-option-code { font-size: 0.6rem; color: var(--muted); flex-shrink: 0; }
     .set-option:hover .set-option-code, .set-option.hi .set-option-code { color: var(--muted); }
 
+    /* LANG BADGE */
+    .card-lang-badge {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      background: rgba(10,10,15,0.85);
+      color: var(--text);
+      font-size: 0.6rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      letter-spacing: 0.05em;
+    }
+
     /* RESPONSIVE */
     @media (max-width: 600px) {
       header { padding: 0 16px; }
@@ -851,6 +866,19 @@
             <div class="preview-meta" id="preview-meta"></div>
             <div class="already-owned" id="already-owned">✓ Déjà dans ta collection</div>
           </div>
+        </div>
+        <div style="margin-top:16px">
+          <label>Langue de la carte</label>
+          <select id="card-language">
+            <option value="FR">FR — Français</option>
+            <option value="EN">EN — English</option>
+            <option value="DE">DE — Deutsch</option>
+            <option value="IT">IT — Italiano</option>
+            <option value="ES">ES — Español</option>
+            <option value="PT">PT — Português</option>
+            <option value="JA">JA — 日本語</option>
+            <option value="KO">KO — 한국어</option>
+          </select>
         </div>
         <div class="preview-actions">
           <button class="btn btn-primary" style="flex:1" onclick="addCard()">✚ Ajouter à la collection</button>
@@ -1225,6 +1253,7 @@ async function addCard() {
         hp: currentCard.hp,
         types: currentCard.types,
         quantity: 1,
+        notes: document.getElementById('card-language').value,
       };
       const { data, error } = await db.from('collection').insert(newCard).select().single();
       if (error) throw error;
@@ -1275,6 +1304,7 @@ function renderCollection(cards = collection) {
       <button class="delete-btn" onclick="event.stopPropagation(); deleteCard('${c.id}')">✕</button>
       ${c.quantity > 1 ? `<div class="card-item-count">${c.quantity}×</div>` : ''}
       <img src="${c.image_small || ''}" alt="${c.name}" loading="lazy" />
+      ${c.notes ? `<div class="card-lang-badge">${c.notes}</div>` : ''}
       <div class="card-item-info">
         <div class="card-item-name">${c.name}</div>
         <div class="card-item-set">${c.set_name || ''} #${c.number || ''}</div>
@@ -1321,6 +1351,10 @@ function openModal(id) {
     <div class="modal-meta-item">
       <div class="modal-meta-label">Quantité</div>
       <div class="modal-meta-value">${card.quantity || 1}×</div>
+    </div>
+    <div class="modal-meta-item">
+      <div class="modal-meta-label">Langue</div>
+      <div class="modal-meta-value">${card.notes || '—'}</div>
     </div>
   `;
 
