@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PokéScan</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface2: #1a1a28;
+      --border: #2a2a3d;
+      --accent: #ffde00;
+      --accent2: #3b82f6;
+      --red: #ef4444;
+      --text: #f0f0ff;
+      --muted: #6b6b8a;
+      --radius: 12px;
+      --font-display: 'Unbounded', sans-serif;
+      --font-mono: 'Space Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* BG grain */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+    }
+
+    /* HEADER */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,10,15,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-weight: 900;
+      font-size: 1.2rem;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .logo span { color: var(--text); }
+
+    .counter {
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 6px 14px;
+      border-radius: 100px;
+    }
+
+    .counter strong { color: var(--accent); }
+
+    /* NAV */
+    nav {
+      display: flex;
+      gap: 4px;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      z-index: 1;
+    }
+
+    .nav-btn {
+      background: none;
+      border: 1px solid transparent;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-btn:hover { color: var(--text); border-color: var(--border); }
+    .nav-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+      font-weight: 700;
+    }
+
+    /* MAIN */
+    main {
+      position: relative;
+      z-index: 1;
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* PAGES */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* COLLECTION PAGE */
+    .collection-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .page-title {
+      font-family: var(--font-display);
+      font-size: 1.5rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: var(--radius);
+      border: none;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .btn-primary { background: var(--accent); color: #000; }
+    .btn-primary:hover { background: #ffe84d; transform: translateY(-1px); }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-danger { background: var(--red); color: #fff; }
+    .btn-danger:hover { background: #dc2626; }
+    .btn-sm { padding: 6px 12px; font-size: 0.7rem; }
+
+    .search-bar {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      margin-bottom: 24px;
+      transition: border-color 0.2s;
+    }
+
+    .search-bar:focus { outline: none; border-color: var(--accent); }
+    .search-bar::placeholder { color: var(--muted); }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
+    .card-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: all 0.2s;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .card-item:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 32px rgba(255,222,0,0.15);
+    }
+
+    .card-item img {
+      width: 100%;
+      aspect-ratio: 2.5/3.5;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card-item-info {
+      padding: 10px;
+    }
+
+    .card-item-name {
+      font-family: var(--font-display);
+      font-size: 0.65rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+
+    .card-item-set {
+      font-size: 0.6rem;
+      color: var(--muted);
+    }
+
+    .card-item-count {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--accent);
+      color: #000;
+      font-weight: 700;
+      font-size: 0.65rem;
+      padding: 2px 7px;
+      border-radius: 100px;
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      background: rgba(239,68,68,0.9);
+      border: none;
+      color: white;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 0.7rem;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-item:hover .delete-btn { display: flex; }
+
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--muted);
+    }
+
+    .empty-state .emoji { font-size: 4rem; margin-bottom: 16px; }
+    .empty-state h3 { font-family: var(--font-display); font-size: 1rem; margin-bottom: 8px; color: var(--text); }
+    .empty-state p { font-size: 0.8rem; line-height: 1.6; }
+
+    /* SCANNER PAGE */
+    .scanner-container {
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .scanner-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 4px;
+      margin-bottom: 24px;
+    }
+
+    .scanner-tab {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .scanner-tab.active { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+    /* CAMERA */
+    .camera-section { display: none; }
+    .camera-section.active { display: block; }
+
+    .camera-wrapper {
+      position: relative;
+      background: #000;
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 2px solid var(--border);
+      margin-bottom: 16px;
+      aspect-ratio: 4/3;
+    }
+
+    #video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .camera-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 16px;
+      background: linear-gradient(transparent 60%, rgba(0,0,0,0.6));
+    }
+
+    .camera-hint {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.8);
+      text-align: center;
+      background: rgba(0,0,0,0.5);
+      padding: 6px 12px;
+      border-radius: 100px;
+    }
+
+    .scan-frame {
+      position: absolute;
+      bottom: 20%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      height: 30%;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.3);
+    }
+
+    .scan-frame::before, .scan-frame::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-color: var(--accent);
+      border-style: solid;
+    }
+    .scan-frame::before { top: -2px; left: -2px; border-width: 3px 0 0 3px; }
+    .scan-frame::after { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; }
+
+    /* FORM */
+    .form-group { margin-bottom: 16px; }
+
+    label {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+
+    input, select {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      transition: border-color 0.2s;
+      appearance: none;
+    }
+
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+    input::placeholder { color: var(--muted); }
+
+    select option { background: var(--surface2); }
+
+    /* CARD PREVIEW */
+    .card-preview {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-top: 24px;
+      display: none;
+    }
+
+    .card-preview.visible { display: block; }
+
+    .preview-inner {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+
+    .preview-img {
+      width: 120px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .preview-img img { width: 100%; display: block; }
+
+    .preview-info { flex: 1; }
+
+    .preview-name {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    .preview-meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      line-height: 2;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .badge-rare { border-color: #a855f7; color: #a855f7; }
+    .badge-uncommon { border-color: var(--accent2); color: var(--accent2); }
+    .badge-common { border-color: var(--muted); }
+
+    .already-owned {
+      background: rgba(59,130,246,0.1);
+      border: 1px solid var(--accent2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 0.75rem;
+      color: var(--accent2);
+      margin-top: 12px;
+      display: none;
+    }
+
+    .preview-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* OCR STATUS */
+    .ocr-status {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 16px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .ocr-status.visible { display: flex; }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 20px;
+      font-size: 0.8rem;
+      z-index: 1000;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: #22c55e; color: #22c55e; }
+    .toast.error { border-color: var(--red); color: var(--red); }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      z-index: 500;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 400px;
+      padding: 24px;
+      animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+
+    @keyframes modalIn { from { transform: scale(0.9); opacity: 0; } }
+
+    .modal-img {
+      width: 60%;
+      margin: 0 auto 16px;
+      display: block;
+      border-radius: 8px;
+    }
+
+    .modal-title {
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 900;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    .modal-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .modal-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .modal-meta-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .modal-meta-label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+    .modal-meta-value { font-size: 0.8rem; font-weight: 700; }
+
+    .modal-actions { display: flex; gap: 8px; }
+
+    /* EXPORT */
+    .actions-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* LOADING OVERLAY */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      transition: opacity 0.4s;
+    }
+
+    #loading.hidden { opacity: 0; pointer-events: none; }
+
+    .loading-logo {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 900;
+      color: var(--accent);
+    }
+
+    .loading-bar {
+      width: 200px;
+      height: 3px;
+      background: var(--surface2);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+
+    .loading-bar-inner {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 100px;
+      animation: loading 1.5s ease-in-out infinite;
+    }
+
+    @keyframes loading {
+      0% { width: 0; margin-left: 0; }
+      50% { width: 60%; margin-left: 20%; }
+      100% { width: 0; margin-left: 100%; }
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 600px) {
+      header { padding: 0 16px; }
+      nav { padding: 12px 16px; overflow-x: auto; }
+      main { padding: 16px; }
+      .cards-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+      .preview-inner { flex-direction: column; }
+      .preview-img { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="loading-logo">POKÉSCAN</div>
+  <div class="loading-bar"><div class="loading-bar-inner"></div></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <img class="modal-img" id="modal-img" src="" alt="" />
+    <div class="modal-title" id="modal-name"></div>
+    <div class="modal-sub" id="modal-sub"></div>
+    <div class="modal-meta" id="modal-meta"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" style="flex:1" onclick="closeModal()">Fermer</button>
+      <button class="btn btn-danger btn-sm" id="modal-delete-btn">Supprimer</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">POKÉ<span>SCAN</span></div>
+  <div class="counter">Collection : <strong id="total-count">0</strong> cartes</div>
+</header>
+
+<!-- NAV -->
+<nav>
+  <button class="nav-btn active" onclick="showPage('collection')">📦 Ma collection</button>
+  <button class="nav-btn" onclick="showPage('scanner')">📷 Scanner</button>
+</nav>
+
+<!-- MAIN -->
+<main>
+
+  <!-- PAGE COLLECTION -->
+  <div class="page active" id="page-collection">
+    <div class="collection-header">
+      <div class="page-title">Ma collection</div>
+      <div class="actions-bar">
+        <button class="btn btn-secondary btn-sm" onclick="exportCollection()">⬇ Export JSON</button>
+        <button class="btn btn-primary" onclick="showPage('scanner')">+ Scanner une carte</button>
+      </div>
+    </div>
+    <input type="text" class="search-bar" placeholder="Rechercher une carte..." id="search-input" oninput="filterCards()" />
+    <div class="cards-grid" id="cards-grid">
+      <!-- cards injected here -->
+    </div>
+  </div>
+
+  <!-- PAGE SCANNER -->
+  <div class="page" id="page-scanner">
+    <div class="scanner-container">
+      <div class="page-title" style="margin-bottom:24px">Scanner une carte</div>
+
+      <div class="scanner-tabs">
+        <button class="scanner-tab active" onclick="switchScanTab('camera')">📷 Caméra OCR</button>
+        <button class="scanner-tab" onclick="switchScanTab('manual')">⌨️ Manuel</button>
+      </div>
+
+      <!-- CAMERA TAB -->
+      <div class="camera-section active" id="tab-camera">
+        <div class="camera-wrapper">
+          <video id="video" autoplay playsinline muted></video>
+          <div class="scan-frame"></div>
+          <div class="camera-overlay">
+            <div class="camera-hint">Cadrez le bas de la carte (numéro + set)</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <button class="btn btn-primary" style="flex:1" onclick="captureAndScan()">📸 Capturer & Scanner</button>
+          <button class="btn btn-secondary" onclick="toggleCamera()" id="camera-toggle-btn">⏹ Arrêter</button>
+        </div>
+        <canvas id="canvas" style="display:none"></canvas>
+
+        <div class="ocr-status" id="ocr-status">
+          <div class="spinner"></div>
+          <span id="ocr-status-text">Analyse en cours...</span>
+        </div>
+
+        <div style="margin-bottom:16px">
+          <label>Numéro détecté (modifiable)</label>
+          <input type="text" id="ocr-number" placeholder="ex: 025" />
+        </div>
+        <div style="margin-bottom:16px">
+          <label>Set détecté (modifiable)</label>
+          <input type="text" id="ocr-set" placeholder="ex: sv1" />
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="searchCard('ocr')">🔍 Rechercher cette carte</button>
+      </div>
+
+      <!-- MANUAL TAB -->
+      <div class="camera-section" id="tab-manual">
+        <div class="form-group">
+          <label>Set Pokémon TCG (code)</label>
+          <input type="text" id="manual-set" placeholder="ex: sv1, base1, swsh1..." />
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:6px">
+            Codes courants : sv1 (Écarlate & Violet), sv2 (Évolutions à Paldea), base1 (Set de Base)
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Numéro de carte</label>
+          <input type="text" id="manual-number" placeholder="ex: 025 ou 025/198" />
+        </div>
+        <button class="btn btn-primary" style="width:100%" onclick="searchCard('manual')">🔍 Rechercher cette carte</button>
+      </div>
+
+      <!-- CARD PREVIEW -->
+      <div class="card-preview" id="card-preview">
+        <div class="preview-inner">
+          <div class="preview-img">
+            <img id="preview-img" src="" alt="" />
+          </div>
+          <div class="preview-info">
+            <div class="preview-name" id="preview-name"></div>
+            <div class="preview-meta" id="preview-meta"></div>
+            <div class="already-owned" id="already-owned">✓ Déjà dans ta collection</div>
+          </div>
+        </div>
+        <div class="preview-actions">
+          <button class="btn btn-primary" style="flex:1" onclick="addCard()">✚ Ajouter à la collection</button>
+          <button class="btn btn-secondary btn-sm" onclick="resetPreview()">✕ Annuler</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://hgeitctehwcovulvaexm.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_ODutqwn8KE9esXKtD0aynA_WPD9nZIf';
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let collection = [];
+let currentCard = null;
+let cameraStream = null;
+let cameraActive = false;
+
+// ─── LOADING ──────────────────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  await loadCollection();
+  setTimeout(() => {
+    document.getElementById('loading').classList.add('hidden');
+  }, 800);
+});
+
+// ─── NAVIGATION ───────────────────────────────────────────────────────────────
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  document.querySelectorAll('.nav-btn')[page === 'collection' ? 0 : 1].classList.add('active');
+
+  if (page === 'scanner') {
+    startCamera();
+  } else {
+    stopCamera();
+    resetPreview();
+  }
+}
+
+function switchScanTab(tab) {
+  document.querySelectorAll('.scanner-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.camera-section').forEach(s => s.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+
+  if (tab === 'camera') startCamera();
+  else stopCamera();
+}
+
+// ─── CAMERA ───────────────────────────────────────────────────────────────────
+async function startCamera() {
+  const video = document.getElementById('video');
+  if (cameraStream) return;
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    video.srcObject = cameraStream;
+    cameraActive = true;
+    document.getElementById('camera-toggle-btn').textContent = '⏹ Arrêter';
+  } catch (e) {
+    showToast('Caméra non disponible — utilise le mode manuel', 'error');
+    switchScanTab('manual');
+  }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+    cameraActive = false;
+  }
+}
+
+function toggleCamera() {
+  if (cameraActive) {
+    stopCamera();
+    document.getElementById('camera-toggle-btn').textContent = '▶ Démarrer';
+  } else {
+    startCamera();
+  }
+}
+
+async function captureAndScan() {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+
+  if (!cameraStream) { showToast('Active la caméra d\'abord', 'error'); return; }
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+
+  showOcrStatus('Reconnaissance du texte...');
+
+  try {
+    const worker = await Tesseract.createWorker('eng');
+    const { data: { text } } = await worker.recognize(canvas);
+    await worker.terminate();
+
+    const number = extractCardNumber(text);
+    const set = extractSetCode(text);
+
+    document.getElementById('ocr-number').value = number || '';
+    document.getElementById('ocr-set').value = set || '';
+
+    hideOcrStatus();
+
+    if (number) {
+      showToast('Numéro détecté : ' + number, 'success');
+    } else {
+      showToast('Numéro non détecté — vérifie et modifie manuellement', 'error');
+    }
+  } catch (e) {
+    hideOcrStatus();
+    showToast('Erreur OCR — réessaie', 'error');
+  }
+}
+
+function extractCardNumber(text) {
+  const match = text.match(/(\d{1,3})\s*\/\s*(\d{1,3})/);
+  if (match) return match[1].padStart(3, '0');
+  const simple = text.match(/\b(\d{3})\b/);
+  return simple ? simple[1] : null;
+}
+
+function extractSetCode(text) {
+  const sets = ['sv1','sv2','sv3','sv4','sv5','sv6','sv7','sv8','swsh1','swsh2','swsh3','swsh4','swsh5','swsh6','swsh7','swsh8','swsh9','swsh10','swsh11','swsh12','base1','base2','base3','base4','base5','base6'];
+  const lower = text.toLowerCase();
+  return sets.find(s => lower.includes(s)) || null;
+}
+
+function showOcrStatus(msg) {
+  const el = document.getElementById('ocr-status');
+  document.getElementById('ocr-status-text').textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideOcrStatus() {
+  document.getElementById('ocr-status').classList.remove('visible');
+}
+
+// ─── SEARCH CARD ──────────────────────────────────────────────────────────────
+async function searchCard(mode) {
+  let number, set;
+
+  if (mode === 'manual') {
+    number = document.getElementById('manual-number').value.trim().replace(/\/.*/, '').padStart(3, '0');
+    set = document.getElementById('manual-set').value.trim().toLowerCase();
+  } else {
+    number = document.getElementById('ocr-number').value.trim().padStart(3, '0');
+    set = document.getElementById('ocr-set').value.trim().toLowerCase();
+  }
+
+  if (!number) { showToast('Entre un numéro de carte', 'error'); return; }
+  if (!set) { showToast('Entre un code de set', 'error'); return; }
+
+  showOcrStatus('Recherche dans la base PokéTCG...');
+
+  try {
+    const query = `number:${parseInt(number)} set.id:${set}`;
+    const res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=1`);
+    const data = await res.json();
+
+    hideOcrStatus();
+
+    if (!data.data || data.data.length === 0) {
+      showToast('Carte non trouvée — vérifie le numéro et le set', 'error');
+      return;
+    }
+
+    showCardPreview(data.data[0]);
+  } catch (e) {
+    hideOcrStatus();
+    showToast('Erreur réseau — vérifie ta connexion', 'error');
+  }
+}
+
+function showCardPreview(card) {
+  currentCard = card;
+
+  document.getElementById('preview-img').src = card.images?.small || '';
+  document.getElementById('preview-name').textContent = card.name;
+
+  const rarity = card.rarity || 'Inconnue';
+  const rarityClass = rarity.toLowerCase().includes('rare') ? 'badge-rare' :
+                      rarity.toLowerCase().includes('uncommon') ? 'badge-uncommon' : 'badge-common';
+
+  document.getElementById('preview-meta').innerHTML = `
+    <div>${card.set?.name || ''} — <strong>#${card.number}</strong></div>
+    <div><span class="badge ${rarityClass}">${rarity}</span></div>
+    <div style="margin-top:4px;font-size:0.65rem">${card.types?.join(', ') || ''} ${card.hp ? '• ' + card.hp + ' PV' : ''}</div>
+  `;
+
+  const owned = collection.find(c => c.card_id === card.id);
+  const ownedEl = document.getElementById('already-owned');
+  if (owned) {
+    ownedEl.style.display = 'block';
+    ownedEl.textContent = `✓ Déjà dans ta collection (${owned.quantity}×)`;
+  } else {
+    ownedEl.style.display = 'none';
+  }
+
+  document.getElementById('card-preview').classList.add('visible');
+}
+
+function resetPreview() {
+  currentCard = null;
+  document.getElementById('card-preview').classList.remove('visible');
+  document.getElementById('ocr-number').value = '';
+  document.getElementById('ocr-set').value = '';
+  document.getElementById('manual-number').value = '';
+  document.getElementById('manual-set').value = '';
+}
+
+// ─── COLLECTION ───────────────────────────────────────────────────────────────
+async function loadCollection() {
+  try {
+    const { data, error } = await db.from('collection').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    collection = data || [];
+    renderCollection();
+    updateCounter();
+  } catch (e) {
+    console.error(e);
+    showToast('Erreur de chargement — vérifie la config Supabase', 'error');
+  }
+}
+
+async function addCard() {
+  if (!currentCard) return;
+
+  const existing = collection.find(c => c.card_id === currentCard.id);
+
+  try {
+    if (existing) {
+      const { error } = await db.from('collection')
+        .update({ quantity: existing.quantity + 1 })
+        .eq('id', existing.id);
+      if (error) throw error;
+      existing.quantity += 1;
+    } else {
+      const newCard = {
+        card_id: currentCard.id,
+        name: currentCard.name,
+        set_id: currentCard.set?.id,
+        set_name: currentCard.set?.name,
+        number: currentCard.number,
+        rarity: currentCard.rarity,
+        image_small: currentCard.images?.small,
+        image_large: currentCard.images?.large,
+        hp: currentCard.hp,
+        types: currentCard.types,
+        quantity: 1,
+      };
+      const { data, error } = await db.from('collection').insert(newCard).select().single();
+      if (error) throw error;
+      collection.unshift(data);
+    }
+
+    renderCollection();
+    updateCounter();
+    showToast('✓ ' + currentCard.name + ' ajouté !', 'success');
+    resetPreview();
+    showPage('collection');
+  } catch (e) {
+    console.error(e);
+    showToast('Erreur lors de l\'ajout', 'error');
+  }
+}
+
+async function deleteCard(id) {
+  try {
+    const { error } = await db.from('collection').delete().eq('id', id);
+    if (error) throw error;
+    collection = collection.filter(c => c.id !== id);
+    renderCollection();
+    updateCounter();
+    closeModal();
+    showToast('Carte supprimée', 'success');
+  } catch (e) {
+    showToast('Erreur lors de la suppression', 'error');
+  }
+}
+
+function renderCollection(cards = collection) {
+  const grid = document.getElementById('cards-grid');
+
+  if (cards.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="emoji">📦</div>
+        <h3>Collection vide</h3>
+        <p>Scanne ta première carte pour commencer<br>ta collection virtuelle !</p>
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = cards.map(c => `
+    <div class="card-item" onclick="openModal('${c.id}')">
+      <button class="delete-btn" onclick="event.stopPropagation(); deleteCard('${c.id}')">✕</button>
+      ${c.quantity > 1 ? `<div class="card-item-count">${c.quantity}×</div>` : ''}
+      <img src="${c.image_small || ''}" alt="${c.name}" loading="lazy" />
+      <div class="card-item-info">
+        <div class="card-item-name">${c.name}</div>
+        <div class="card-item-set">${c.set_name || ''} #${c.number || ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterCards() {
+  const query = document.getElementById('search-input').value.toLowerCase();
+  const filtered = collection.filter(c =>
+    c.name.toLowerCase().includes(query) ||
+    (c.set_name || '').toLowerCase().includes(query)
+  );
+  renderCollection(filtered);
+}
+
+function updateCounter() {
+  const total = collection.reduce((sum, c) => sum + (c.quantity || 1), 0);
+  document.getElementById('total-count').textContent = total;
+}
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function openModal(id) {
+  const card = collection.find(c => c.id === id);
+  if (!card) return;
+
+  document.getElementById('modal-img').src = card.image_large || card.image_small || '';
+  document.getElementById('modal-name').textContent = card.name;
+  document.getElementById('modal-sub').textContent = `${card.set_name || ''} • #${card.number || ''}`;
+  document.getElementById('modal-meta').innerHTML = `
+    <div class="modal-meta-item">
+      <div class="modal-meta-label">Rareté</div>
+      <div class="modal-meta-value">${card.rarity || '—'}</div>
+    </div>
+    <div class="modal-meta-item">
+      <div class="modal-meta-label">PV</div>
+      <div class="modal-meta-value">${card.hp || '—'}</div>
+    </div>
+    <div class="modal-meta-item">
+      <div class="modal-meta-label">Type</div>
+      <div class="modal-meta-value">${(card.types || []).join(', ') || '—'}</div>
+    </div>
+    <div class="modal-meta-item">
+      <div class="modal-meta-label">Quantité</div>
+      <div class="modal-meta-value">${card.quantity || 1}×</div>
+    </div>
+  `;
+
+  document.getElementById('modal-delete-btn').onclick = () => deleteCard(id);
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// ─── EXPORT ───────────────────────────────────────────────────────────────────
+function exportCollection() {
+  const json = JSON.stringify(collection, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pokescan-collection-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Collection exportée !', 'success');
+}
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+let toastTimeout;
+function showToast(msg, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast ' + type + ' show';
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
