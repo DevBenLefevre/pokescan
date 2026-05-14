@@ -923,7 +923,6 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let collection = [];
 let allSets = [];
-let setsCache = {};
 let currentCard = null;
 let selectedLanguage = 'FR';
 let cameraStream = null;
@@ -933,7 +932,7 @@ let cameraActive = false;
 window.addEventListener('load', async () => {
   initSetInput('ocr-set');
   initSetInput('manual-set');
-  loadSetsForLang('FR');
+  loadSets();
   await loadCollection();
   setTimeout(() => {
     document.getElementById('loading').classList.add('hidden');
@@ -1064,23 +1063,16 @@ function hideOcrStatus() {
 }
 
 // ─── SETS ─────────────────────────────────────────────────────────────────────
-async function loadSetsForLang(lang) {
-  const key = lang.toLowerCase();
-  if (setsCache[key]) { allSets = setsCache[key]; return; }
+async function loadSets() {
   try {
-    const q = lang === 'EN'
-      ? 'orderBy=-releaseDate&pageSize=250'
-      : `q=${encodeURIComponent('language:' + key)}&orderBy=-releaseDate&pageSize=250`;
-    const res = await fetch(`https://api.pokemontcg.io/v2/sets?${q}`);
+    const res = await fetch('https://api.pokemontcg.io/v2/sets?orderBy=-releaseDate&pageSize=250');
     const data = await res.json();
-    setsCache[key] = data.data || [];
-    allSets = setsCache[key];
-  } catch (e) { /* fallback: keep current allSets */ }
+    allSets = data.data || [];
+  } catch (e) { /* autocomplete is a nice-to-have */ }
 }
 
-async function onLanguageChange(lang) {
+function onLanguageChange(lang) {
   selectedLanguage = lang;
-  await loadSetsForLang(lang);
 }
 
 function initSetInput(inputId) {
@@ -1183,9 +1175,18 @@ async function searchCard(mode) {
   showOcrStatus('Recherche dans la base PokéTCG...');
 
   try {
-    const query = `number:${parseInt(number)} set.id:${set}`;
-    const res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=1`);
-    const data = await res.json();
+    const base = `number:${parseInt(number)} set.id:${set}`;
+    const langQuery = selectedLanguage !== 'EN'
+      ? base + ` language:${selectedLanguage.toLowerCase()}`
+      : base;
+
+    let res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(langQuery)}&pageSize=1`);
+    let data = await res.json();
+
+    if ((!data.data || data.data.length === 0) && selectedLanguage !== 'EN') {
+      res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(base)}&pageSize=1`);
+      data = await res.json();
+    }
 
     hideOcrStatus();
 
