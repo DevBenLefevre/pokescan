@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [2026-05-14c]
+
+### Ajouté
+- Bannière rouge "⚠ Image EN — version FR introuvable dans l'API" dans le preview quand le fallback anglais est utilisé
+- Rareté traduite en français dans la modale (Commune, Rare Holographique, Illustration Rare Spéciale, etc.)
+- Types traduits en français dans la modale (Feu, Eau, Plante, Électrik, Psy, Combat...)
+
 ## [2026-05-14b]
 
 ### Corrigé
