@@ -839,7 +839,7 @@
         </div>
         <div style="margin-bottom:16px">
           <label>Langue de ta carte</label>
-          <select onchange="selectedLanguage = this.value">
+          <select onchange="onLanguageChange(this.value)">
             <option value="FR">FR — Français</option>
             <option value="EN">EN — English</option>
             <option value="DE">DE — Deutsch</option>
@@ -863,7 +863,7 @@
         </div>
         <div class="form-group">
           <label>Langue de ta carte</label>
-          <select onchange="selectedLanguage = this.value">
+          <select onchange="onLanguageChange(this.value)">
             <option value="FR">FR — Français</option>
             <option value="EN">EN — English</option>
             <option value="DE">DE — Deutsch</option>
@@ -923,6 +923,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let collection = [];
 let allSets = [];
+let setsCache = {};
 let currentCard = null;
 let selectedLanguage = 'FR';
 let cameraStream = null;
@@ -932,7 +933,7 @@ let cameraActive = false;
 window.addEventListener('load', async () => {
   initSetInput('ocr-set');
   initSetInput('manual-set');
-  loadSets();
+  loadSetsForLang('FR');
   await loadCollection();
   setTimeout(() => {
     document.getElementById('loading').classList.add('hidden');
@@ -1063,14 +1064,23 @@ function hideOcrStatus() {
 }
 
 // ─── SETS ─────────────────────────────────────────────────────────────────────
-async function loadSets() {
+async function loadSetsForLang(lang) {
+  const key = lang.toLowerCase();
+  if (setsCache[key]) { allSets = setsCache[key]; return; }
   try {
-    const res = await fetch('https://api.pokemontcg.io/v2/sets?orderBy=-releaseDate&pageSize=250');
+    const q = lang === 'EN'
+      ? 'orderBy=-releaseDate&pageSize=250'
+      : `q=${encodeURIComponent('language:' + key)}&orderBy=-releaseDate&pageSize=250`;
+    const res = await fetch(`https://api.pokemontcg.io/v2/sets?${q}`);
     const data = await res.json();
-    allSets = data.data || [];
-  } catch (e) {
-    // autocomplete is a nice-to-have; silently ignore failures
-  }
+    setsCache[key] = data.data || [];
+    allSets = setsCache[key];
+  } catch (e) { /* fallback: keep current allSets */ }
+}
+
+async function onLanguageChange(lang) {
+  selectedLanguage = lang;
+  await loadSetsForLang(lang);
 }
 
 function initSetInput(inputId) {
@@ -1173,14 +1183,9 @@ async function searchCard(mode) {
   showOcrStatus('Recherche dans la base PokéTCG...');
 
   try {
-    const base = `number:${parseInt(number)} set.id:${set}`;
-    let res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(base + ' language:fr')}&pageSize=1`);
-    let data = await res.json();
-
-    if (!data.data || data.data.length === 0) {
-      res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(base)}&pageSize=1`);
-      data = await res.json();
-    }
+    const query = `number:${parseInt(number)} set.id:${set}`;
+    const res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(query)}&pageSize=1`);
+    const data = await res.json();
 
     hideOcrStatus();
 
