@@ -469,6 +469,17 @@
       display: none;
     }
 
+    .img-lang-warning {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid var(--red);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.72rem;
+      color: var(--red);
+      margin-top: 10px;
+      display: none;
+    }
+
     .preview-actions {
       display: flex;
       gap: 8px;
@@ -891,6 +902,7 @@
             <div class="preview-name" id="preview-name"></div>
             <div class="preview-meta" id="preview-meta"></div>
             <div class="already-owned" id="already-owned">✓ Déjà dans ta collection</div>
+            <div class="img-lang-warning" id="img-lang-warning">⚠ Image EN — version FR introuvable dans l'API</div>
           </div>
         </div>
         <div class="preview-actions">
@@ -921,9 +933,30 @@ const SUPABASE_KEY = 'sb_publishable_ODutqwn8KE9esXKtD0aynA_WPD9nZIf';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const RARITY_FR = {
+  'Common': 'Commune', 'Uncommon': 'Peu commune', 'Rare': 'Rare',
+  'Rare Holo': 'Rare Holographique', 'Rare Holo EX': 'Rare Holo EX',
+  'Rare Holo GX': 'Rare Holo GX', 'Rare Holo V': 'Rare Holo V',
+  'Rare Holo VMAX': 'Rare Holo VMAX', 'Rare Holo VSTAR': 'Rare Holo VSTAR',
+  'Rare Ultra': 'Ultra Rare', 'Amazing Rare': 'Rare Incroyable',
+  'Rare Secret': 'Secrète Rare', 'Rare Rainbow': 'Arc-en-ciel Rare',
+  'Rare Shiny': 'Brillante Rare', 'Rare Shiny GX': 'Brillante Rare GX',
+  'Double Rare': 'Double Rare', 'Illustration Rare': 'Illustration Rare',
+  'Special Illustration Rare': 'Illustration Rare Spéciale',
+  'Hyper Rare': 'Hyper Rare', 'ACE SPEC Rare': 'ACE SPEC Rare',
+  'Promo': 'Promo', 'LEGEND': 'Légende',
+};
+const TYPE_FR = {
+  'Colorless': 'Incolore', 'Fire': 'Feu', 'Water': 'Eau', 'Grass': 'Plante',
+  'Lightning': 'Électrik', 'Psychic': 'Psy', 'Fighting': 'Combat',
+  'Darkness': 'Obscurité', 'Metal': 'Métal', 'Dragon': 'Dragon', 'Fairy': 'Fée',
+};
+function tr(map, val) { return map[val] || val; }
+
 let collection = [];
 let allSets = [];
 let currentCard = null;
+let currentCardImageLang = 'EN';
 let selectedLanguage = 'FR';
 let cameraStream = null;
 let cameraActive = false;
@@ -1182,10 +1215,12 @@ async function searchCard(mode) {
 
     let res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(langQuery)}&pageSize=1`);
     let data = await res.json();
+    currentCardImageLang = selectedLanguage;
 
     if ((!data.data || data.data.length === 0) && selectedLanguage !== 'EN') {
       res = await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(base)}&pageSize=1`);
       data = await res.json();
+      currentCardImageLang = 'EN';
     }
 
     hideOcrStatus();
@@ -1225,6 +1260,14 @@ function showCardPreview(card) {
     ownedEl.textContent = `✓ Déjà dans ta collection (${owned.quantity}×)`;
   } else {
     ownedEl.style.display = 'none';
+  }
+
+  const warnEl = document.getElementById('img-lang-warning');
+  if (currentCardImageLang !== selectedLanguage) {
+    warnEl.textContent = `⚠ Image EN — version ${selectedLanguage} introuvable dans l'API`;
+    warnEl.style.display = 'block';
+  } else {
+    warnEl.style.display = 'none';
   }
 
   document.getElementById('card-preview').classList.add('visible');
@@ -1360,10 +1403,12 @@ function openModal(id) {
   document.getElementById('modal-img').src = card.image_large || card.image_small || '';
   document.getElementById('modal-name').textContent = card.name;
   document.getElementById('modal-sub').textContent = `${card.set_name || ''} • #${card.number || ''}`;
+  const rarityFR = tr(RARITY_FR, card.rarity || '');
+  const typesFR = (card.types || []).map(t => tr(TYPE_FR, t)).join(', ') || '—';
   document.getElementById('modal-meta').innerHTML = `
     <div class="modal-meta-item">
       <div class="modal-meta-label">Rareté</div>
-      <div class="modal-meta-value">${card.rarity || '—'}</div>
+      <div class="modal-meta-value">${rarityFR || '—'}</div>
     </div>
     <div class="modal-meta-item">
       <div class="modal-meta-label">PV</div>
@@ -1371,7 +1416,7 @@ function openModal(id) {
     </div>
     <div class="modal-meta-item">
       <div class="modal-meta-label">Type</div>
-      <div class="modal-meta-value">${(card.types || []).join(', ') || '—'}</div>
+      <div class="modal-meta-value">${typesFR}</div>
     </div>
     <div class="modal-meta-item">
       <div class="modal-meta-label">Quantité</div>
